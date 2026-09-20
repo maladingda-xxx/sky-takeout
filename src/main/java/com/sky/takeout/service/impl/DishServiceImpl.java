@@ -3,6 +3,7 @@ package com.sky.takeout.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sky.takeout.common.CacheNames;
 import com.sky.takeout.common.CurrentUserContext;
 import com.sky.takeout.dto.DishCreateDTO;
 import com.sky.takeout.dto.DishFlavorDTO;
@@ -20,6 +21,7 @@ import com.sky.takeout.vo.DishFlavorVO;
 import com.sky.takeout.vo.DishPageVO;
 import com.sky.takeout.vo.PageResult;
 import org.springframework.http.HttpStatus;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +62,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public Long create(DishCreateDTO dishCreateDTO) {
         requireDishCategory(dishCreateDTO.getCategoryId());
 
@@ -106,6 +112,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void update(DishUpdateDTO dishUpdateDTO) {
         requireDish(dishUpdateDTO.getId());
         requireDishCategory(dishUpdateDTO.getCategoryId());
@@ -132,6 +142,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void updateStatus(Long id, Integer status) {
         if (status == null || (status != 0 && status != 1)) {
             throw new BusinessException(
@@ -156,6 +170,10 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void delete(Long id) {
         requireDish(id);
 

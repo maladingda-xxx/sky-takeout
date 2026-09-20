@@ -1,6 +1,7 @@
 package com.sky.takeout.service.impl;
 
 import com.sky.takeout.common.CurrentUserContext;
+import com.sky.takeout.common.CacheNames;
 import com.sky.takeout.dto.CategoryCreateDTO;
 import com.sky.takeout.dto.CategoryPageQueryDTO;
 import com.sky.takeout.dto.CategoryUpdateDTO;
@@ -11,6 +12,7 @@ import com.sky.takeout.service.CategoryService;
 import com.sky.takeout.vo.CategoryVO;
 import com.sky.takeout.vo.PageResult;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.CATEGORIES,
+                    CacheNames.DISHES,
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL
+            },
+            allEntries = true
+    )
     public Long create(CategoryCreateDTO categoryCreateDTO) {
         String name = categoryCreateDTO.getName().trim();
         validateUnique(categoryCreateDTO.getType(), name, null);
@@ -100,6 +111,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.CATEGORIES,
+                    CacheNames.DISHES,
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL
+            },
+            allEntries = true
+    )
     public void update(CategoryUpdateDTO categoryUpdateDTO) {
         requireCategory(categoryUpdateDTO.getId());
 
@@ -134,6 +154,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.CATEGORIES,
+                    CacheNames.DISHES,
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL
+            },
+            allEntries = true
+    )
     public void updateStatus(Long id, Integer status) {
         if (status == null || (status != 0 && status != 1)) {
             throw new BusinessException(
@@ -158,6 +187,15 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.CATEGORIES,
+                    CacheNames.DISHES,
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL
+            },
+            allEntries = true
+    )
     public void delete(Long id) {
         requireCategory(id);
 

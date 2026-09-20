@@ -3,6 +3,7 @@ package com.sky.takeout.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sky.takeout.common.CacheNames;
 import com.sky.takeout.entity.Category;
 import com.sky.takeout.entity.Dish;
 import com.sky.takeout.entity.DishFlavor;
@@ -18,8 +19,10 @@ import com.sky.takeout.vo.DishUserVO;
 import com.sky.takeout.vo.SetmealDetailVO;
 import com.sky.takeout.vo.SetmealPageVO;
 import org.springframework.http.HttpStatus;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,20 +50,22 @@ public class UserCatalogServiceImpl implements UserCatalogService {
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.CATEGORIES, key = "#type")
     public List<CategoryVO> listCategories(Integer type) {
         validateCategoryType(type);
-        return categoryMapper.selectEnabledByType(type)
+        return new ArrayList<>(categoryMapper.selectEnabledByType(type)
                 .stream()
                 .map(this::toCategoryVO)
-                .toList();
+                .toList());
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.DISHES, key = "#categoryId")
     public List<DishUserVO> listDishes(Long categoryId) {
         requireEnabledCategory(categoryId, 1);
         List<Dish> dishes = dishMapper.selectEnabledByCategoryId(categoryId);
         if (dishes.isEmpty()) {
-            return List.of();
+            return new ArrayList<>();
         }
 
         List<Long> dishIds = dishes.stream().map(Dish::getId).toList();
@@ -72,7 +77,8 @@ public class UserCatalogServiceImpl implements UserCatalogService {
                         Collectors.mapping(this::toFlavorVO, Collectors.toList())
                 ));
 
-        return dishes.stream()
+        // Redis JSON default typing cannot read immutable ListN root values.
+        return new ArrayList<>(dishes.stream()
                 .map(dish -> new DishUserVO(
                         dish.getId(),
                         dish.getName(),
@@ -81,16 +87,18 @@ public class UserCatalogServiceImpl implements UserCatalogService {
                         dish.getDescription(),
                         flavorsByDishId.getOrDefault(dish.getId(), List.of())
                 ))
-                .toList();
+                .toList());
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.SETMEALS, key = "#categoryId")
     public List<SetmealPageVO> listSetmeals(Long categoryId) {
         requireEnabledCategory(categoryId, 2);
-        return setmealMapper.selectEnabledByCategoryId(categoryId);
+        return new ArrayList<>(setmealMapper.selectEnabledByCategoryId(categoryId));
     }
 
     @Override
+    @Cacheable(cacheNames = CacheNames.SETMEAL_DETAIL, key = "#id")
     public SetmealDetailVO getSetmealDetail(Long id) {
         Setmeal setmeal = setmealMapper.selectById(id);
         if (setmeal == null || setmeal.getStatus() != ENABLED) {

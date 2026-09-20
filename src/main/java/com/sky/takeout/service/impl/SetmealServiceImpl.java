@@ -1,6 +1,7 @@
 package com.sky.takeout.service.impl;
 
 import com.sky.takeout.common.CurrentUserContext;
+import com.sky.takeout.common.CacheNames;
 import com.sky.takeout.dto.SetmealCreateDTO;
 import com.sky.takeout.dto.SetmealDishDTO;
 import com.sky.takeout.dto.SetmealPageQueryDTO;
@@ -19,6 +20,7 @@ import com.sky.takeout.vo.SetmealDetailVO;
 import com.sky.takeout.vo.SetmealDishVO;
 import com.sky.takeout.vo.SetmealPageVO;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +64,10 @@ public class SetmealServiceImpl implements SetmealService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public Long create(SetmealCreateDTO setmealCreateDTO) {
         requireSetmealCategory(setmealCreateDTO.getCategoryId());
 
@@ -124,6 +130,10 @@ public class SetmealServiceImpl implements SetmealService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void update(SetmealUpdateDTO setmealUpdateDTO) {
         requireSetmeal(setmealUpdateDTO.getId());
         requireSetmealCategory(setmealUpdateDTO.getCategoryId());
@@ -168,6 +178,10 @@ public class SetmealServiceImpl implements SetmealService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void updateStatus(Long id, Integer status) {
         if (status == null || (status != 0 && status != 1)) {
             throw new BusinessException(
@@ -192,6 +206,10 @@ public class SetmealServiceImpl implements SetmealService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            allEntries = true
+    )
     public void delete(Long id) {
         requireSetmeal(id);
 

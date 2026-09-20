@@ -6899,3 +6899,287 @@ Redis 先作为独立基础设施接入
 5. 为什么真实 Redis 测试要用环境变量控制，而不是默认执行？
 6. `CACHE_ENABLED=false` 对本地开发和故障排查有什么价值？
 7. 下一任务给菜品和套餐加缓存时，哪些管理端写操作必须清理缓存？
+
+---
+
+## 2026-09-20：Step 17 - 用户端目录浏览缓存
+
+### 1. 本步目标
+
+Step 16 只把 Redis 接进了项目，业务代码一行没改。本步把缓存真正接到用户端浏览路径上，并且保证管理端改完数据后用户不会继续看到旧数据。
+
+本步覆盖的链路只有一条：用户端目录浏览。
+
+```text
+GET /user/category/list   分类列表
+GET /user/dish/list       某分类下的菜品
+GET /user/setmeal/list    某分类下的套餐
+GET /user/setmeal/{id}    套餐详情
+```
+
+订单、购物车、地址不在本步范围内，原因见第 2 节。
+
+### 2. 为什么只缓存目录浏览
+
+判断一个读接口值不值得缓存，先看它的数据特征：
+
+| 维度 | 目录浏览（分类、菜品、套餐） | 订单、购物车 |
+| --- | --- | --- |
+| 读写比 | 读远多于写 | 每次查询条件和结果都不同 |
+| 时效要求 | 分钟级延迟可接受 | 涉及金额和状态，必须实时 |
+| 是否按用户隔离 | 否，所有用户看到同一份数据 | 是，按 userId 隔离 |
+| 缓存收益 | 高，热点集中在少数分类上 | 低，而且容易串数据 |
+
+结论很简单：只缓存“与用户无关、按分类维度被反复读取、允许分钟级延迟”的数据。
+
+如果给订单加缓存，第一个问题不是性能，而是“谁的订单缓存、失效时会不会把 A 用户的订单给到 B 用户”。这类风险远超收益，所以本步不做。
+
+### 3. 缓存名称集中定义
+
+新增 `src/main/java/com/sky/takeout/common/CacheNames.java`：
+
+```java
+public final class CacheNames {
+
+    public static final String CATEGORIES = "catalogCategories";
+    public static final String DISHES = "catalogDishes";
+    public static final String SETMEALS = "catalogSetmeals";
+    public static final String SETMEAL_DETAIL = "catalogSetmealDetail";
+
+    private CacheNames() {
+    }
+}
+```
+
+四个常量对应四组缓存。用常量类而不是在每个注解里手写字符串，原因是：读方法和写方法必须引用同一个名字，一旦拼错，写方法清的是另一组缓存，程序不会报错，只会一直读到脏数据。这种 bug 很难靠测试发现，靠编译器发现更靠谱。
+
+### 4. 读路径：@Cacheable
+
+`UserCatalogServiceImpl` 的四个查询方法各加一个注解：
+
+```java
+@Cacheable(cacheNames = CacheNames.CATEGORIES, key = "#type")
+public List<CategoryVO> listCategories(Integer type) {
+    validateCategoryType(type);
+    return new ArrayList<>(...);
+}
+
+@Cacheable(cacheNames = CacheNames.DISHES, key = "#categoryId")
+public List<DishUserVO> listDishes(Long categoryId) { ... }
+
+@Cacheable(cacheNames = CacheNames.SETMEALS, key = "#categoryId")
+public List<SetmealPageVO> listSetmeals(Long categoryId) { ... }
+
+@Cacheable(cacheNames = CacheNames.SETMEAL_DETAIL, key = "#id")
+public SetmealDetailVO getSetmealDetail(Long id) { ... }
+```
+
+几个必须理解的点：
+
+1. `@Cacheable` 是靠 Spring 代理实现的。调用的入口必须是代理对象，所以同类内部直接调用自己的方法不会走缓存。
+2. 命中缓存时方法体完全不执行，直接返回缓存里的值。这意味着数据库不查、日志不打、方法里的校验也不跑。
+3. 没命中才执行方法，正常返回后把返回值写进缓存。
+4. 方法抛异常时不写缓存。所以 `validateCategoryType` 和 `requireEnabledCategory` 抛出的非法参数、分类不存在等情况不会污染缓存。
+5. `key = "#type"` 用的是方法参数名。缓存最终存成 `sky:cache:catalogCategories:1` 这样的 key。
+
+第 2 点带来的直接结论：能被缓存的读方法，逻辑必须“纯”——同样的 key 必须给出同样的结果，不能依赖当前登录用户或当前时间。
+
+### 5. 写路径：@CacheEvict 与失效范围
+
+缓存最难的不是加，是失效。本步的规则是：管理端只要改了会影响用户端目录的数据，就清掉对应缓存。
+
+```text
+DishServiceImpl.create / update / updateStatus / delete
+    -> 清 catalogDishes、catalogSetmealDetail
+
+SetmealServiceImpl.create / update / updateStatus / delete
+    -> 清 catalogSetmeals、catalogSetmealDetail
+
+CategoryServiceImpl.create / update / updateStatus / delete
+    -> 清 catalogCategories、catalogDishes、catalogSetmeals、catalogSetmealDetail
+```
+
+为什么范围不一样：
+
+- 菜品改动只影响“某分类下的菜品列表”和“套餐详情”（套餐详情里嵌了菜品信息），所以清两组。
+- 套餐改动影响“某分类下的套餐列表”和“该套餐的详情”，清两组。
+- 分类改动会牵连全部四组。分类被禁用后，用户端的分类列表、菜品列表、套餐列表、套餐详情都会跟着不可用，判断依据都在分类表里，所以宁可多清。
+
+为什么用 `allEntries = true`：
+
+缓存 key 是分类 id，而写操作不一定能推导出“到底影响了哪个分类”。比如分类禁用会牵连该分类下的全部菜品和套餐，`updateStatus(Long id, ...)` 手里只有一个分类 id，要去反查菜品和套餐再逐个删 key，代码更长、更容易漏。当前数据量下，整组清空换取正确性是划算的。
+
+代价也要说清楚：`allEntries = true` 会把所有分类的缓存一起清掉，命中率下降。这是“先保证对，再优化命中率”的顺序。
+
+关于事务边界：
+
+```text
+@Transactional 和 @CacheEvict 同时存在时
+@CacheEvict 默认 beforeInvocation = false
+-> 方法正常返回后才清缓存
+-> 事务回滚时异常抛出，方法不算正常返回，缓存不清
+```
+
+所以“数据库回滚了但缓存被清掉”不会发生。反过来的小窗口是存在的：缓存清理在事务提交之前执行，如果清理完、事务提交前有并发读，这条读会把旧数据重新写回缓存。这部分属于一致性优化，见第 10 节。
+
+### 6. 序列化：为什么改用项目自己的 ObjectMapper
+
+Step 16 的配置是：
+
+```java
+new GenericJackson2JsonRedisSerializer();
+```
+
+本步改成：
+
+```java
+GenericJackson2JsonRedisSerializer.builder()
+        .objectMapper(objectMapper.copy())
+        .defaultTyping(true)
+        .typeHintPropertyName("@class")
+        .build();
+```
+
+两个原因：
+
+1. 默认构造函数会自己 `new` 一个 ObjectMapper，它不认识项目里的 Jackson 配置。用项目注入的 ObjectMapper，才能保证“写进 Redis 的 JSON”和“HTTP 返回给前端的 JSON”规则一致，比如时间格式、字段命名、null 处理。
+2. 缓存里存的是 `List<DishUserVO>` 这类泛型集合。JSON 本身不保留泛型信息，读回来只能得到一个 `List<LinkedHashMap>`。开启 `defaultTyping` 后，序列化时会额外写入 `@class` 类型提示，反序列化才能还原成 `DishUserVO`。
+
+代价是缓存内容被绑定到 Java 全限定类名。以后如果把 `DishUserVO` 挪到别的包，旧缓存就反序列化失败。当前的缓解方式是 TTL 只有 10 分钟，最坏情况等它自然过期，或者手动清一遍。
+
+### 7. 踩坑：不可变 List 不能作为缓存值的根类型
+
+这是本步唯一一个真实踩到的坑。
+
+原来的代码用 `stream().toList()` 和 `List.of()` 返回列表，它们返回的是 JDK 内部的不可变实现 `ImmutableCollections.ListN`。开启 `defaultTyping` 后，序列化会写入：
+
+```json
+["java.util.ImmutableCollections$ListN", [ ... ]]
+```
+
+反序列化时无法构造这个内部类对应的可变集合，直接抛异常。
+
+修复方式是让缓存返回值统一变成可变集合：
+
+```java
+// Redis JSON default typing cannot read immutable ListN root values.
+return new ArrayList<>(dishes.stream()...toList());
+```
+
+```java
+if (dishes.isEmpty()) {
+    return new ArrayList<>();
+}
+```
+
+需要注意的边界：出问题的只是“缓存值的根类型”。嵌套在 VO 里面的小集合（例如菜品没有配置口味时的 `List.of()`）经 Jackson 还原没问题，`CatalogCacheIntegrationTest` 用真实 Redis 覆盖到了这个场景。
+
+结论：被缓存的返回值，类型要可控、要可变。不要拿 JDK 内部实现类当作可持久化的数据契约。
+
+### 8. 开关、TTL 和 key 前缀
+
+本步没有新增配置，直接复用 Step 16 定义的三个开关：
+
+```yaml
+sky:
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    ttl: ${CACHE_TTL:10m}
+    key-prefix: ${CACHE_KEY_PREFIX:sky:cache:}
+```
+
+最终 key 结构由 `computePrefixWith` 决定：
+
+```text
+sky:cache:<cacheName>:<key>
+sky:cache:catalogDishes:1
+sky:cache:catalogSetmealDetail:7
+```
+
+配置里还有一行 `.disableCachingNullValues()`，它决定了“查询结果为空时不会缓存空值”。这是有意为之，但也正是缓存穿透风险的来源，见第 10 节。
+
+### 9. 自动化测试
+
+新增 `src/test/java/com/sky/takeout/CatalogCacheIntegrationTest.java`，三个用例：
+
+```text
+shouldCacheDishListAndEvictOnDishWrite
+shouldCacheSetmealListAndDetailAndEvictOnSetmealWrite
+shouldEvictCategoryCacheOnCategoryWrite
+```
+
+三个设计决定值得记住：
+
+1. 断言不只看业务返回值，而是直接向 `CacheManager` 要 `cache.get(key)`，用 null / 非 null 判断“到底有没有命中缓存”。因为缓存和数据库数据一致时，返回值根本区分不出走的是哪条路径。
+2. 类上加了 `@EnabledIfEnvironmentVariable(named = "REDIS_INTEGRATION_TEST", matches = "true")`。默认构建跳过，避免没有 Redis 的机器红一片；需要真实验证时显式打开。
+3. 类上加了 `@Transactional`，数据库数据靠事务回滚；但 Redis 不受数据库事务控制，所以 `@BeforeEach` / `@AfterEach` 手动清四组缓存。这一点反过来印证了第 5 节的说法：缓存不在事务范围内，需要自己管理。
+
+运行方式：
+
+```bash
+REDIS_INTEGRATION_TEST=true ./mvnw -o test -Dtest=CatalogCacheIntegrationTest,RedisConnectionIntegrationTest
+```
+
+### 10. 验证结果
+
+真实 Redis（本机 `redis-cli ping` 返回 PONG）：
+
+```text
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+默认全量测试：
+
+```text
+Tests run: 156, Failures: 0, Errors: 0, Skipped: 4
+BUILD SUCCESS
+```
+
+和 Step 16 的 153 条相比，多了本步的 3 条缓存用例；跳过的 4 条全部是需要显式开启的真实 Redis 用例。
+
+### 11. 本步设计结论
+
+```text
+只缓存用户端目录浏览，订单和购物车不缓存
+缓存名称用常量类集中定义，读写双方引用同一个名字
+读路径用 @Cacheable，key 用方法参数
+写路径用 @CacheEvict，按影响范围选择清理哪些缓存组
+清理粒度先用 allEntries 整组清空，正确性优先于命中率
+缓存值用项目统一的 ObjectMapper 序列化，并写入类型提示
+缓存值根类型必须是可变集合
+真实 Redis 测试继续用环境变量门控
+```
+
+### 12. 已知局限与下一步
+
+本步只解决了“能缓存”和“改数据会失效”，还没有处理下面这些：
+
+```text
+穿透：结果为空不写缓存，反复查不存在的分类会一直打数据库
+击穿：热点 key 过期瞬间，并发请求同时回源数据库
+雪崩：所有 key 共用同一个 TTL，会同时过期
+一致性：allEntries 全清粒度偏粗；@CacheEvict 与事务提交之间存在极小窗口
+重构成本：类型提示写入了全限定类名，改包名后旧缓存读不出来
+```
+
+下一步候选：
+
+```text
+空值缓存或布隆过滤解决穿透
+随机 TTL 抖动解决雪崩
+互斥重建或逻辑过期解决击穿
+评估是否真的需要引入消息队列
+接口文档与部署（Phase 5）
+```
+
+### 13. 自学检查点
+
+1. 为什么只有用户端目录浏览加缓存，订单和购物车不加？
+2. `@Cacheable` 命中时方法体不执行，这对方法里的参数校验意味着什么？
+3. 为什么分类的写操作要清四组缓存，而菜品的写操作只清两组？
+4. `allEntries = true` 牺牲了什么，换来了什么？
+5. 为什么 `@CacheEvict` 默认在方法正常返回后执行，可以避免“事务回滚但缓存已被清”？
+6. 为什么缓存值要用项目统一的 ObjectMapper 序列化，而不是用默认构造的 ObjectMapper？
+7. 为什么 `List.of()` 和 `stream().toList()` 不能直接作为缓存值的根类型？
+8. 如果 Redis 挂了，浏览接口应该直接报错，还是降级去查数据库？

@@ -1,5 +1,6 @@
 package com.sky.takeout.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -23,10 +24,15 @@ public class RedisCacheConfig {
     @Bean
     public RedisCacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            CacheProperties cacheProperties
+            CacheProperties cacheProperties,
+            ObjectMapper objectMapper
     ) {
         GenericJackson2JsonRedisSerializer valueSerializer =
-                new GenericJackson2JsonRedisSerializer();
+                GenericJackson2JsonRedisSerializer.builder()
+                        .objectMapper(objectMapper.copy())
+                        .defaultTyping(true)
+                        .typeHintPropertyName("@class")
+                        .build();
         RedisCacheConfiguration defaults = RedisCacheConfiguration
                 .defaultCacheConfig()
                 .entryTtl(cacheProperties.getTtl())
