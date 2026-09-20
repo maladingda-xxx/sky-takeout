@@ -63,7 +63,11 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.DISHES,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public Long create(DishCreateDTO dishCreateDTO) {
@@ -113,7 +117,11 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.DISHES,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void update(DishUpdateDTO dishUpdateDTO) {
@@ -143,7 +151,11 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.DISHES,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void updateStatus(Long id, Integer status) {
@@ -171,7 +183,11 @@ public class DishServiceImpl implements DishService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.DISHES, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.DISHES,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void delete(Long id) {

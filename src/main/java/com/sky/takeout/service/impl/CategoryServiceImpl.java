@@ -55,7 +55,8 @@ public class CategoryServiceImpl implements CategoryService {
                     CacheNames.CATEGORIES,
                     CacheNames.DISHES,
                     CacheNames.SETMEALS,
-                    CacheNames.SETMEAL_DETAIL
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
             },
             allEntries = true
     )
@@ -116,7 +117,8 @@ public class CategoryServiceImpl implements CategoryService {
                     CacheNames.CATEGORIES,
                     CacheNames.DISHES,
                     CacheNames.SETMEALS,
-                    CacheNames.SETMEAL_DETAIL
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
             },
             allEntries = true
     )
@@ -159,7 +161,8 @@ public class CategoryServiceImpl implements CategoryService {
                     CacheNames.CATEGORIES,
                     CacheNames.DISHES,
                     CacheNames.SETMEALS,
-                    CacheNames.SETMEAL_DETAIL
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
             },
             allEntries = true
     )
@@ -192,7 +195,8 @@ public class CategoryServiceImpl implements CategoryService {
                     CacheNames.CATEGORIES,
                     CacheNames.DISHES,
                     CacheNames.SETMEALS,
-                    CacheNames.SETMEAL_DETAIL
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
             },
             allEntries = true
     )

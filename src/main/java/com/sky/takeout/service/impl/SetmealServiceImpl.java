@@ -65,7 +65,11 @@ public class SetmealServiceImpl implements SetmealService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public Long create(SetmealCreateDTO setmealCreateDTO) {
@@ -131,7 +135,11 @@ public class SetmealServiceImpl implements SetmealService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void update(SetmealUpdateDTO setmealUpdateDTO) {
@@ -179,7 +187,11 @@ public class SetmealServiceImpl implements SetmealService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void updateStatus(Long id, Integer status) {
@@ -207,7 +219,11 @@ public class SetmealServiceImpl implements SetmealService {
     @Override
     @Transactional
     @CacheEvict(
-            cacheNames = {CacheNames.SETMEALS, CacheNames.SETMEAL_DETAIL},
+            cacheNames = {
+                    CacheNames.SETMEALS,
+                    CacheNames.SETMEAL_DETAIL,
+                    CacheNames.CATALOG_MISS
+            },
             allEntries = true
     )
     public void delete(Long id) {

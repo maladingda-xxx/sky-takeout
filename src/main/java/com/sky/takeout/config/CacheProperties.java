@@ -11,6 +11,8 @@ public class CacheProperties {
 
     private boolean enabled = true;
     private Duration ttl = Duration.ofMinutes(10);
+    private Duration ttlJitter = Duration.ofSeconds(60);
+    private Duration missTtl = Duration.ofMinutes(2);
     private String keyPrefix = "sky:cache:";
 
     public boolean isEnabled() {
@@ -27,6 +29,22 @@ public class CacheProperties {
 
     public void setTtl(Duration ttl) {
         this.ttl = ttl;
+    }
+
+    public Duration getTtlJitter() {
+        return ttlJitter;
+    }
+
+    public void setTtlJitter(Duration ttlJitter) {
+        this.ttlJitter = ttlJitter;
+    }
+
+    public Duration getMissTtl() {
+        return missTtl;
+    }
+
+    public void setMissTtl(Duration missTtl) {
+        this.missTtl = missTtl;
     }
 
     public String getKeyPrefix() {

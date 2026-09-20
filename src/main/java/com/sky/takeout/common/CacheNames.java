@@ -6,6 +6,7 @@ public final class CacheNames {
     public static final String DISHES = "catalogDishes";
     public static final String SETMEALS = "catalogSetmeals";
     public static final String SETMEAL_DETAIL = "catalogSetmealDetail";
+    public static final String CATALOG_MISS = "catalogMiss";
 
     private CacheNames() {
     }

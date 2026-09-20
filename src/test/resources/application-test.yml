@@ -11,3 +11,5 @@ spring:
 sky:
   auth:
     enabled: false
+  cache:
+    enabled: false

@@ -1,6 +1,7 @@
 package com.sky.takeout.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sky.takeout.common.CatalogMissCache;
 import com.sky.takeout.entity.Category;
 import com.sky.takeout.entity.Dish;
 import com.sky.takeout.entity.DishFlavor;
@@ -15,12 +16,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,11 +45,13 @@ class UserCatalogServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        CatalogMissCache missCache = new CatalogMissCache(providerOf());
         userCatalogService = new UserCatalogServiceImpl(
                 categoryMapper,
                 dishMapper,
                 setmealMapper,
-                new ObjectMapper()
+                new ObjectMapper(),
+                missCache
         );
     }
 
@@ -94,6 +102,46 @@ class UserCatalogServiceImplTest {
 
         assertEquals(404, exception.getCode());
         assertEquals("Setmeal not found", exception.getMessage());
+    }
+
+    @Test
+    void shouldServeRepeatedMissingCategoryFromNegativeCache() {
+        when(categoryMapper.selectById(99L)).thenReturn(null);
+
+        assertThrows(BusinessException.class, () -> userCatalogService.listDishes(99L));
+        BusinessException second = assertThrows(
+                BusinessException.class,
+                () -> userCatalogService.listDishes(99L)
+        );
+
+        assertEquals(404, second.getCode());
+        assertEquals("Category not found", second.getMessage());
+        verify(categoryMapper, times(1)).selectById(99L);
+    }
+
+    @Test
+    void shouldServeRepeatedMissingSetmealFromNegativeCache() {
+        when(setmealMapper.selectById(77L)).thenReturn(null);
+
+        assertThrows(BusinessException.class, () -> userCatalogService.getSetmealDetail(77L));
+        BusinessException second = assertThrows(
+                BusinessException.class,
+                () -> userCatalogService.getSetmealDetail(77L)
+        );
+
+        assertEquals(404, second.getCode());
+        assertEquals("Setmeal not found", second.getMessage());
+        verify(setmealMapper, times(1)).selectById(77L);
+    }
+
+    private ObjectProvider<CacheManager> providerOf() {
+        ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager();
+        return new ObjectProvider<>() {
+            @Override
+            public CacheManager getIfAvailable() {
+                return cacheManager;
+            }
+        };
     }
 
     private Category category(Long id, Integer type, Integer status) {

@@ -4,6 +4,7 @@ import com.sky.takeout.common.CacheNames;
 import com.sky.takeout.dto.DishCreateDTO;
 import com.sky.takeout.dto.SetmealCreateDTO;
 import com.sky.takeout.dto.SetmealDishDTO;
+import com.sky.takeout.exception.BusinessException;
 import com.sky.takeout.service.CategoryService;
 import com.sky.takeout.service.DishService;
 import com.sky.takeout.service.SetmealService;
@@ -19,17 +20,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+@SpringBootTest(properties = "sky.cache.enabled=true")
 @ActiveProfiles("test")
 @Transactional
 @EnabledIfEnvironmentVariable(
@@ -53,6 +58,9 @@ class CatalogCacheIntegrationTest {
     @Autowired
     private CacheManager cacheManager;
 
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
     @BeforeEach
     void clearCachesBeforeTest() {
         clearCatalogCaches();
@@ -68,7 +76,8 @@ class CatalogCacheIntegrationTest {
                 CacheNames.CATEGORIES,
                 CacheNames.DISHES,
                 CacheNames.SETMEALS,
-                CacheNames.SETMEAL_DETAIL
+                CacheNames.SETMEAL_DETAIL,
+                CacheNames.CATALOG_MISS
         ).forEach(cacheName -> {
             Cache cache = cacheManager.getCache(cacheName);
             if (cache != null) {
@@ -131,6 +140,74 @@ class CatalogCacheIntegrationTest {
 
         categoryService.updateStatus(1L, 1);
         assertNull(cache.get(1));
+    }
+
+    @Test
+    void shouldCacheMissingCategoryAndClearItOnCategoryWrite() {
+        BusinessException first = assertThrows(
+                BusinessException.class,
+                () -> userCatalogService.listDishes(999L)
+        );
+        assertEquals(404, first.getCode());
+
+        Cache missCache = cacheManager.getCache(CacheNames.CATALOG_MISS);
+        assertNotNull(missCache);
+        assertNotNull(missCache.get("dish-category:999"));
+
+        BusinessException second = assertThrows(
+                BusinessException.class,
+                () -> userCatalogService.listDishes(999L)
+        );
+        assertEquals("Category not found", second.getMessage());
+
+        userCatalogService.listDishes(1L);
+        Long missTtl = stringRedisTemplate.getExpire(
+                "sky:cache:catalogMiss:dish-category:999",
+                TimeUnit.SECONDS
+        );
+        Long positiveTtl = stringRedisTemplate.getExpire(
+                "sky:cache:catalogDishes:1",
+                TimeUnit.SECONDS
+        );
+        assertNotNull(missTtl);
+        assertNotNull(positiveTtl);
+        assertTrue(missTtl > 0 && missTtl <= 180, "miss ttl=" + missTtl);
+        assertTrue(
+                missTtl < positiveTtl,
+                "miss ttl=" + missTtl + ", positive ttl=" + positiveTtl
+        );
+
+        categoryService.updateStatus(1L, 1);
+        assertNull(missCache.get("dish-category:999"));
+    }
+
+    @Test
+    void shouldReturnSetmealDetailFromCacheOnSecondRead() {
+        Long dishId = createDish("Cached Detail Dish");
+        Long setmealId = createSetmeal(dishId);
+
+        SetmealDetailVO firstRead = userCatalogService.getSetmealDetail(setmealId);
+        SetmealDetailVO secondRead = userCatalogService.getSetmealDetail(setmealId);
+
+        assertEquals(firstRead.getName(), secondRead.getName());
+        assertEquals(firstRead.getPrice(), secondRead.getPrice());
+        assertEquals(firstRead.getDishes().size(), secondRead.getDishes().size());
+        assertEquals(
+                firstRead.getDishes().get(0).getDishId(),
+                secondRead.getDishes().get(0).getDishId()
+        );
+    }
+
+    @Test
+    void shouldWriteCachedDishListWithJitteredTtl() {
+        userCatalogService.listDishes(1L);
+
+        Long ttl = stringRedisTemplate.getExpire(
+                "sky:cache:catalogDishes:1",
+                TimeUnit.SECONDS
+        );
+        assertNotNull(ttl);
+        assertTrue(ttl > 0 && ttl <= 660, "dish ttl=" + ttl);
     }
 
     private Long createDish(String name) {

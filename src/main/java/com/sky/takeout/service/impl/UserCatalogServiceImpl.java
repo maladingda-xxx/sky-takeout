@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sky.takeout.common.CacheNames;
+import com.sky.takeout.common.CatalogMissCache;
 import com.sky.takeout.entity.Category;
 import com.sky.takeout.entity.Dish;
 import com.sky.takeout.entity.DishFlavor;
@@ -36,21 +37,24 @@ public class UserCatalogServiceImpl implements UserCatalogService {
     private final DishMapper dishMapper;
     private final SetmealMapper setmealMapper;
     private final ObjectMapper objectMapper;
+    private final CatalogMissCache catalogMissCache;
 
     public UserCatalogServiceImpl(
             CategoryMapper categoryMapper,
             DishMapper dishMapper,
             SetmealMapper setmealMapper,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            CatalogMissCache catalogMissCache
     ) {
         this.categoryMapper = categoryMapper;
         this.dishMapper = dishMapper;
         this.setmealMapper = setmealMapper;
         this.objectMapper = objectMapper;
+        this.catalogMissCache = catalogMissCache;
     }
 
     @Override
-    @Cacheable(cacheNames = CacheNames.CATEGORIES, key = "#type")
+    @Cacheable(cacheNames = CacheNames.CATEGORIES, key = "#type", sync = true)
     public List<CategoryVO> listCategories(Integer type) {
         validateCategoryType(type);
         return new ArrayList<>(categoryMapper.selectEnabledByType(type)
@@ -60,9 +64,9 @@ public class UserCatalogServiceImpl implements UserCatalogService {
     }
 
     @Override
-    @Cacheable(cacheNames = CacheNames.DISHES, key = "#categoryId")
+    @Cacheable(cacheNames = CacheNames.DISHES, key = "#categoryId", sync = true)
     public List<DishUserVO> listDishes(Long categoryId) {
-        requireEnabledCategory(categoryId, 1);
+        requireEnabledCategory(CatalogMissCache.DISH_CATEGORY_SCOPE, categoryId, 1);
         List<Dish> dishes = dishMapper.selectEnabledByCategoryId(categoryId);
         if (dishes.isEmpty()) {
             return new ArrayList<>();
@@ -91,20 +95,32 @@ public class UserCatalogServiceImpl implements UserCatalogService {
     }
 
     @Override
-    @Cacheable(cacheNames = CacheNames.SETMEALS, key = "#categoryId")
+    @Cacheable(cacheNames = CacheNames.SETMEALS, key = "#categoryId", sync = true)
     public List<SetmealPageVO> listSetmeals(Long categoryId) {
-        requireEnabledCategory(categoryId, 2);
+        requireEnabledCategory(CatalogMissCache.SETMEAL_CATEGORY_SCOPE, categoryId, 2);
         return new ArrayList<>(setmealMapper.selectEnabledByCategoryId(categoryId));
     }
 
     @Override
-    @Cacheable(cacheNames = CacheNames.SETMEAL_DETAIL, key = "#id")
+    @Cacheable(cacheNames = CacheNames.SETMEAL_DETAIL, key = "#id", sync = true)
     public SetmealDetailVO getSetmealDetail(Long id) {
+        BusinessException missed = catalogMissCache.findMissed(
+                CatalogMissCache.SETMEAL_SCOPE,
+                id
+        );
+        if (missed != null) {
+            throw missed;
+        }
+
         Setmeal setmeal = setmealMapper.selectById(id);
         if (setmeal == null || setmeal.getStatus() != ENABLED) {
-            throw new BusinessException(
+            throw catalogMissCache.recordMissed(
+                    CatalogMissCache.SETMEAL_SCOPE,
+                    id,
+                    new BusinessException(
                     HttpStatus.NOT_FOUND.value(),
                     "Setmeal not found"
+                    )
             );
         }
 
@@ -123,23 +139,34 @@ public class UserCatalogServiceImpl implements UserCatalogService {
         );
     }
 
-    private Category requireEnabledCategory(Long categoryId, int expectedType) {
+    private void requireEnabledCategory(String scope, Long categoryId, int expectedType) {
+        BusinessException missed = catalogMissCache.findMissed(scope, categoryId);
+        if (missed != null) {
+            throw missed;
+        }
+
         Category category = categoryMapper.selectById(categoryId);
         if (category == null || category.getStatus() != ENABLED) {
-            throw new BusinessException(
-                    HttpStatus.NOT_FOUND.value(),
-                    "Category not found"
+            throw catalogMissCache.recordMissed(
+                    scope,
+                    categoryId,
+                    new BusinessException(
+                            HttpStatus.NOT_FOUND.value(),
+                            "Category not found"
+                    )
             );
         }
 
         if (category.getType() != expectedType) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST.value(),
-                    "Category type mismatch"
+            throw catalogMissCache.recordMissed(
+                    scope,
+                    categoryId,
+                    new BusinessException(
+                            HttpStatus.BAD_REQUEST.value(),
+                            "Category type mismatch"
+                    )
             );
         }
-
-        return category;
     }
 
     private void validateCategoryType(Integer type) {
