@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.EmployeeMapper">
+
+    <sql id="queryWhere">
+        <where>
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countByQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM employee
+        <include refid="queryWhere"/>
+    </select>
+
+    <select id="selectPage" resultType="Employee">
+        SELECT id,
+               name,
+               username,
+               phone,
+               sex,
+               status,
+               update_time
+        FROM employee
+        <include refid="queryWhere"/>
+        ORDER BY update_time DESC, id DESC
+               LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByUsername" resultType="long">
+        SELECT COUNT(*)
+        FROM employee
+        WHERE username = #{username}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countByIdNumber" resultType="long">
+        SELECT COUNT(*)
+        FROM employee
+        WHERE id_number = #{idNumber}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO employee (
+            name,
+            username,
+            password,
+            phone,
+            sex,
+            id_number,
+            status,
+            create_user,
+            update_user
+        ) VALUES (
+            #{name},
+            #{username},
+            #{password},
+            #{phone},
+            #{sex},
+            #{idNumber},
+            #{status},
+            #{createUser},
+            #{updateUser}
+        )
+    </insert>
+
+    <select id="selectById" resultType="Employee">
+        SELECT id,
+               name,
+               username,
+               password,
+               phone,
+               sex,
+               id_number,
+               status,
+               create_time,
+               update_time,
+               create_user,
+               update_user
+        FROM employee
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByUsername" resultType="Employee">
+        SELECT id,
+               name,
+               username,
+               password,
+               phone,
+               sex,
+               id_number,
+               status,
+               create_time,
+               update_time,
+               create_user,
+               update_user
+        FROM employee
+        WHERE username = #{username}
+    </select>
+
+    <update id="update">
+        UPDATE employee
+        SET name = #{name},
+            username = #{username},
+            phone = #{phone},
+            sex = #{sex},
+            id_number = #{idNumber},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE employee
+        SET status = #{status},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM employee
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

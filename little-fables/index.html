@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1d2b21">
+  <meta name="description" content="Little Fables is a neighborhood restaurant for long lunches, slow dinners, and stories worth repeating. Reserve a table online.">
+  <title>Little Fables | Neighborhood Restaurant &amp; Reservations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#siteView">Skip to content</a>
+
+  <header class="topbar" id="topbar">
+    <a class="brand" href="#home" data-view-link="site" aria-label="Little Fables home">
+      <span class="brand-mark" aria-hidden="true">LF</span>
+      <span class="brand-copy">
+        <strong>Little Fables</strong>
+        <small>North Quarter</small>
+      </span>
+    </a>
+
+    <nav class="site-nav" id="siteNav" aria-label="Primary navigation">
+      <a href="#reserve" data-view-link="site">Reserve</a>
+      <a href="#menu" data-view-link="site">Menu</a>
+      <a href="#story" data-view-link="site">Our Story</a>
+      <a href="#private" data-view-link="site">Private Dining</a>
+      <a href="#visit" data-view-link="site">Visit</a>
+      <button class="mobile-only-nav-action" type="button" data-open-manage>Manage booking</button>
+      <a class="mobile-only-nav-action" href="#kds" data-view="kds">Kitchen display</a>
+    </nav>
+
+    <div class="topbar-actions">
+      <button class="button button-quiet manage-booking-button" type="button" data-open-manage>
+        <i data-lucide="ticket-check" aria-hidden="true"></i>
+        <span>Manage booking</span>
+      </button>
+      <a class="button button-quiet kds-entry" href="#kds" data-view="kds">
+        <i data-lucide="chef-hat" aria-hidden="true"></i>
+        <span>Kitchen</span>
+      </a>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="Open navigation">
+        <i data-lucide="menu" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  <main id="siteView" data-view-panel="site">
+    <section class="hero" id="home">
+      <img
+        class="hero-photo"
+        src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2200&q=88"
+        alt="Warm dining room at Little Fables with timber tables, pendant lights, and an open kitchen"
+        fetchpriority="high"
+      >
+      <div class="hero-wash" aria-hidden="true"></div>
+
+      <div class="hero-heading">
+        <p class="eyebrow">Seasonal cooking · Open fire · Neighborhood ease</p>
+        <h1>Little Fables</h1>
+        <p class="hero-intro">A candlelit corner for long lunches, slow dinners, and stories worth repeating.</p>
+      </div>
+
+      <section class="overview-sheet" aria-label="Restaurant overview">
+        <div class="overview-lead">
+          <p class="eyebrow">Find us on Rosemary Lane</p>
+          <h2>Good food. No theatre. Just the good kind of fuss.</h2>
+          <p>Menus move with the market, the hearth stays busy, and every table gets a proper welcome.</p>
+        </div>
+
+        <div class="overview-details">
+          <div class="overview-item">
+            <i data-lucide="utensils-crossed" aria-hidden="true"></i>
+            <div>
+              <span>Menu</span>
+              <strong>Wood-fired plates &amp; natural wine</strong>
+            </div>
+          </div>
+          <div class="overview-item">
+            <i data-lucide="clock-3" aria-hidden="true"></i>
+            <div>
+              <span>Hours</span>
+              <strong>Sun–Thu 12–10 · Fri–Sat 12–11</strong>
+            </div>
+          </div>
+          <div class="overview-item">
+            <i data-lucide="map-pin" aria-hidden="true"></i>
+            <div>
+              <span>Location</span>
+              <strong>12 Rosemary Lane, North Quarter</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="overview-actions">
+          <a class="button button-primary" href="#reserve">
+            <i data-lucide="calendar-days" aria-hidden="true"></i>
+            <span>Reserve a table</span>
+          </a>
+          <a class="phone-link" href="tel:+12125550148">
+            <i data-lucide="phone" aria-hidden="true"></i>
+            <span>
+              <small>Prefer to call?</small>
+              +1 (212) 555-0148
+            </span>
+          </a>
+        </div>
+      </section>
+    </section>
+
+    <section class="reservation-band" id="reserve">
+      <div class="section-heading reservation-intro">
+        <p class="eyebrow">Reservations</p>
+        <h2>A table held for the good part of the day.</h2>
+        <p>Choose a time, tell us who is coming, and we will keep everything ready.</p>
+      </div>
+
+      <div class="reservation-layout">
+        <aside class="reservation-aside">
+          <div class="aside-image-wrap">
+            <img
+              src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1400&q=86"
+              alt="Guests sharing dinner in a warm neighborhood restaurant"
+              loading="lazy"
+            >
+          </div>
+          <blockquote>“The kind of place where one glass turns into another chapter.”</blockquote>
+          <dl class="policy-list">
+            <div>
+              <dt>Tables held</dt>
+              <dd>15 minutes past the booked time</dd>
+            </div>
+            <div>
+              <dt>Large groups</dt>
+              <dd>7–10 guests are handled as one table</dd>
+            </div>
+            <div>
+              <dt>Private dining</dt>
+              <dd>Call us for full-room buyouts and 11+ guests</dd>
+            </div>
+          </dl>
+        </aside>
+
+        <section class="reservation-widget" aria-labelledby="reservationWidgetTitle">
+          <div class="widget-head">
+            <div>
+              <p class="eyebrow">Online booking</p>
+              <h3 id="reservationWidgetTitle">Reserve your table</h3>
+            </div>
+            <div class="availability-key">
+              <span><i class="key-dot available" aria-hidden="true"></i> Available</span>
+              <span><i class="key-dot limited" aria-hidden="true"></i> Waitlist</span>
+            </div>
+          </div>
+
+          <ol class="step-rail" aria-label="Reservation steps">
+            <li class="active" data-step-indicator="1"><span>1</span> Availability</li>
+            <li data-step-indicator="2"><span>2</span> Details</li>
+            <li data-step-indicator="3"><span>3</span> Confirmed</li>
+          </ol>
+
+          <form id="reservationForm" novalidate>
+            <div class="reservation-step" id="availabilityStep">
+              <div class="field-row three-up">
+                <label class="field">
+                  <span>Date</span>
+                  <span class="input-shell">
+                    <i data-lucide="calendar-days" aria-hidden="true"></i>
+                    <input id="reservationDate" name="date" type="date" required>
+                  </span>
+                </label>
+                <label class="field">
+                  <span>Party size</span>
+                  <span class="input-shell">
+                    <i data-lucide="users" aria-hidden="true"></i>
+                    <select id="partySize" name="partySize" required>
+                      <option value="">Select</option>
+                      <option value="1">1 guest</option>
+                      <option value="2">2 guests</option>
+                      <option value="3">3 guests</option>
+                      <option value="4">4 guests</option>
+                      <option value="5">5 guests</option>
+                      <option value="6">6 guests</option>
+                      <option value="7">7 guests</option>
+                      <option value="8">8 guests</option>
+                      <option value="9">9 guests</option>
+                      <option value="10">10 guests</option>
+                      <option value="11">11+ guests</option>
+                    </select>
+                  </span>
+                </label>
+                <label class="field">
+                  <span>Seating</span>
+                  <span class="input-shell">
+                    <i data-lucide="armchair" aria-hidden="true"></i>
+                    <select id="seatingPreference" name="seatingPreference">
+                      <option value="No preference">No preference</option>
+                      <option value="Dining room">Dining room</option>
+                      <option value="Chef's counter">Chef's counter</option>
+                      <option value="Window">Window</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
+
+              <div class="availability-block">
+                <div class="availability-head">
+                  <div>
+                    <span class="field-label">Available times</span>
+                    <p id="availabilityMessage">Select a date and party size to see times.</p>
+                  </div>
+                  <button class="text-button" id="refreshAvailability" type="button">
+                    <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                    Refresh
+                  </button>
+                </div>
+                <div class="time-grid" id="timeGrid" role="radiogroup" aria-label="Available reservation times"></div>
+              </div>
+
+              <div class="step-actions">
+                <span class="form-status" id="availabilityStatus" role="status"></span>
+                <button class="button button-primary" id="continueToDetails" type="button">
+                  <span>Continue</span>
+                  <i data-lucide="arrow-right" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="reservation-step" id="detailsStep" hidden>
+              <div class="selected-slot" id="selectedSlotSummary"></div>
+
+              <div class="field-row two-up">
+                <label class="field">
+                  <span>Full name</span>
+                  <span class="input-shell">
+                    <i data-lucide="user-round" aria-hidden="true"></i>
+                    <input id="guestName" name="guestName" type="text" autocomplete="name" placeholder="Your name" required>
+                  </span>
+                  <small class="field-error" data-error-for="guestName"></small>
+                </label>
+                <label class="field">
+                  <span>Phone</span>
+                  <span class="input-shell">
+                    <i data-lucide="phone" aria-hidden="true"></i>
+                    <input id="guestPhone" name="guestPhone" type="tel" autocomplete="tel" placeholder="+1 212 555 0148" required>
+                  </span>
+                  <small class="field-error" data-error-for="guestPhone"></small>
+                </label>
+              </div>
+
+              <div class="field-row two-up">
+                <label class="field">
+                  <span>Email</span>
+                  <span class="input-shell">
+                    <i data-lucide="mail" aria-hidden="true"></i>
+                    <input id="guestEmail" name="guestEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+                  </span>
+                  <small class="field-error" data-error-for="guestEmail"></small>
+                </label>
+                <label class="field">
+                  <span>Occasion</span>
+                  <span class="input-shell">
+                    <i data-lucide="sparkles" aria-hidden="true"></i>
+                    <select id="occasion" name="occasion">
+                      <option value="Dinner">Dinner</option>
+                      <option value="Birthday">Birthday</option>
+                      <option value="Anniversary">Anniversary</option>
+                      <option value="Date night">Date night</option>
+                      <option value="Business">Business</option>
+                      <option value="Just because">Just because</option>
+                    </select>
+                  </span>
+                </label>
+              </div>
+
+              <label class="field">
+                <span>Notes</span>
+                <textarea id="guestNotes" name="guestNotes" rows="3" placeholder="Allergies, accessibility needs, or anything that helps us prepare."></textarea>
+              </label>
+
+              <label class="consent-row">
+                <input id="bookingConsent" name="bookingConsent" type="checkbox" required>
+                <span>I agree that Little Fables may use these details to manage this reservation.</span>
+              </label>
+              <small class="field-error" data-error-for="bookingConsent"></small>
+
+              <div class="step-actions">
+                <button class="button button-quiet" id="backToAvailability" type="button">
+                  <i data-lucide="arrow-left" aria-hidden="true"></i>
+                  <span>Back</span>
+                </button>
+                <span class="form-status" id="detailsStatus" role="status"></span>
+                <button class="button button-primary" type="submit">
+                  <i data-lucide="check" aria-hidden="true"></i>
+                  <span>Confirm reservation</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="reservation-step confirmation-step" id="confirmationStep" hidden>
+              <div class="confirmation-seal">
+                <i data-lucide="check" aria-hidden="true"></i>
+              </div>
+              <p class="eyebrow">Table confirmed</p>
+              <h3>We will see you soon.</h3>
+              <p id="confirmationLead">Your reservation is saved.</p>
+              <div class="confirmation-grid" id="confirmationSummary"></div>
+              <div class="confirmation-code">
+                <span>Confirmation code</span>
+                <strong id="confirmationCode">LF-0000</strong>
+              </div>
+              <div class="confirmation-actions">
+                <button class="button button-primary" id="addToCalendar" type="button">
+                  <i data-lucide="calendar-plus" aria-hidden="true"></i>
+                  <span>Add to calendar</span>
+                </button>
+                <button class="button button-quiet" id="modifyReservation" type="button">
+                  <i data-lucide="pencil" aria-hidden="true"></i>
+                  <span>Modify</span>
+                </button>
+                <button class="button button-danger" id="cancelReservation" type="button">
+                  <i data-lucide="x" aria-hidden="true"></i>
+                  <span>Cancel</span>
+                </button>
+              </div>
+              <p class="demo-note">For this demonstration, booking details are stored only in this browser.</p>
+            </div>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <section class="menu-band" id="menu">
+      <div class="menu-photo">
+        <img
+          src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=86"
+          alt="A generous table spread with seasonal dishes"
+          loading="lazy"
+        >
+      </div>
+      <div class="menu-copy">
+        <p class="eyebrow">From the kitchen</p>
+        <h2>Menus with a short memory.</h2>
+        <p>We cook what looks best that week, with a few regulars that guests would not let us remove.</p>
+        <ul class="menu-list">
+          <li>
+            <div><strong>Ember carrots</strong><span>labneh, pistachio, mint</span></div>
+            <em>$14</em>
+          </li>
+          <li>
+            <div><strong>Handmade cavatelli</strong><span>mushroom, thyme, pecorino</span></div>
+            <em>$24</em>
+          </li>
+          <li>
+            <div><strong>Coal-roasted chicken</strong><span> preserved lemon, greens</span></div>
+            <em>$31</em>
+          </li>
+          <li>
+            <div><strong>Burnt honey tart</strong><span>crème fraîche, sea salt</span></div>
+            <em>$12</em>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="story-band" id="story">
+      <div class="story-copy">
+        <p class="eyebrow">Our story</p>
+        <h2>Built for the table, not the trend cycle.</h2>
+        <p>Little Fables began as a supper club above a bookshop. We kept the long tables, the hand-written menus, and the habit of cooking by season and instinct.</p>
+        <p>Today the room is bigger, the fire is central, and the welcome is the same.</p>
+        <a class="inline-link" href="#visit">
+          <span>Come see the room</span>
+          <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+        </a>
+      </div>
+      <div class="story-image">
+        <img
+          src="https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1600&q=86"
+          alt="Chef plating a dish in a warm open kitchen"
+          loading="lazy"
+        >
+      </div>
+    </section>
+
+    <section class="private-band" id="private">
+      <div>
+        <p class="eyebrow">Private dining</p>
+        <h2>Bring your people. We will make room.</h2>
+      </div>
+      <p>From milestone dinners to relaxed buyouts, our team can shape the menu and the room around the occasion.</p>
+      <a class="button button-light" href="tel:+12125550148">
+        <i data-lucide="phone" aria-hidden="true"></i>
+        <span>Speak with our events team</span>
+      </a>
+    </section>
+
+    <section class="visit-band" id="visit">
+      <div class="visit-heading">
+        <p class="eyebrow">Visit</p>
+        <h2>Rosemary Lane, in the thick of the North Quarter.</h2>
+      </div>
+      <div class="visit-details">
+        <div>
+          <span>Address</span>
+          <strong>12 Rosemary Lane<br>North Quarter, NY 10014</strong>
+          <a class="inline-link" href="https://maps.google.com/?q=12+Rosemary+Lane+New+York" target="_blank" rel="noreferrer">
+            <span>Get directions</span>
+            <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </div>
+        <div>
+          <span>Hours</span>
+          <strong>Sunday–Thursday 12–10<br>Friday–Saturday 12–11</strong>
+          <small>Lunch served until 3pm.</small>
+        </div>
+        <div>
+          <span>Contact</span>
+          <strong><a href="tel:+12125550148">+1 (212) 555-0148</a><br><a href="mailto:hello@littlefables.example">hello@littlefables.example</a></strong>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main class="kds-view" id="kdsView" data-view-panel="kds" hidden>
+    <section class="kds-header">
+      <div>
+        <p class="eyebrow">Little Fables · Kitchen display</p>
+        <h1>Service board</h1>
+        <p id="kdsDateLine"></p>
+      </div>
+      <div class="kds-session">
+        <div class="kds-live">
+          <span class="live-dot" id="kdsLiveDot" aria-hidden="true"></span>
+          <span id="kdsConnectionState">Backend offline</span>
+        </div>
+        <form class="kds-login" id="kdsLoginForm">
+          <label>
+            <span>Admin</span>
+            <input id="kdsUsername" type="text" value="admin" autocomplete="username">
+          </label>
+          <label>
+            <span>Password</span>
+            <input id="kdsPassword" type="password" autocomplete="current-password">
+          </label>
+          <button class="button button-primary" id="kdsLoginButton" type="submit">
+            <i data-lucide="log-in" aria-hidden="true"></i>
+            <span>Connect</span>
+          </button>
+        </form>
+        <div class="kds-session-user" id="kdsSessionUser" hidden>
+          <span>Signed in as <strong id="kdsAdminName"></strong></span>
+          <button class="button button-quiet" id="kdsLogoutButton" type="button">
+            <i data-lucide="log-out" aria-hidden="true"></i>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="kds-toolbar" aria-label="Kitchen display controls">
+      <div class="kds-stat">
+        <span>Open tickets</span>
+        <strong id="openTicketCount">0</strong>
+      </div>
+      <div class="kds-stat">
+        <span>Items to prepare</span>
+        <strong id="guestCount">0</strong>
+      </div>
+      <div class="kds-stat">
+        <span>Next order</span>
+        <strong id="nextTable">—</strong>
+      </div>
+      <div class="kds-toolbar-actions">
+        <button class="button button-quiet" id="kdsRefreshButton" type="button">
+          <i data-lucide="refresh-cw" aria-hidden="true"></i>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="kds-board" id="kdsBoard" aria-label="Kitchen tickets by service stage"></section>
+  </main>
+
+  <footer class="site-footer" id="siteFooter" data-view-panel="site">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">LF</span>
+      <p>Little stories, told one table at a time.</p>
+    </div>
+    <div class="footer-links">
+      <a href="#reserve">Reservations</a>
+      <a href="#private">Private dining</a>
+      <a href="mailto:hello@littlefables.example">Careers</a>
+      <a href="#kds" data-view="kds">Kitchen display</a>
+    </div>
+    <p class="footer-meta">© <span id="footerYear"></span> Little Fables · 12 Rosemary Lane</p>
+  </footer>
+
+  <dialog class="manage-dialog" id="manageDialog">
+    <form method="dialog" class="dialog-head">
+      <div>
+        <p class="eyebrow">Manage booking</p>
+        <h2>Find your table</h2>
+      </div>
+      <button class="icon-button" value="cancel" aria-label="Close">
+        <i data-lucide="x" aria-hidden="true"></i>
+      </button>
+    </form>
+    <div class="dialog-body">
+      <label class="field">
+        <span>Confirmation code</span>
+        <span class="input-shell">
+          <i data-lucide="ticket-check" aria-hidden="true"></i>
+          <input id="manageCode" type="text" placeholder="LF-1234" autocomplete="off">
+        </span>
+      </label>
+      <button class="button button-primary" id="findBooking" type="button">
+        <i data-lucide="search" aria-hidden="true"></i>
+        <span>Find reservation</span>
+      </button>
+      <div class="managed-booking" id="managedBooking" hidden></div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

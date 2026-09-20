@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.ShoppingCartMapper">
+
+    <select id="selectByUserAndDish" resultType="ShoppingCart">
+        SELECT id,
+               user_id,
+               dish_id,
+               setmeal_id,
+               quantity,
+               flavor,
+               create_time,
+               update_time
+        FROM shopping_cart
+        WHERE user_id = #{userId}
+          AND dish_id = #{dishId}
+    </select>
+
+    <select id="selectByUserAndSetmeal" resultType="ShoppingCart">
+        SELECT id,
+               user_id,
+               dish_id,
+               setmeal_id,
+               quantity,
+               flavor,
+               create_time,
+               update_time
+        FROM shopping_cart
+        WHERE user_id = #{userId}
+          AND setmeal_id = #{setmealId}
+    </select>
+
+    <select id="selectByIdAndUserId" resultType="ShoppingCart">
+        SELECT id,
+               user_id,
+               dish_id,
+               setmeal_id,
+               quantity,
+               flavor,
+               create_time,
+               update_time
+        FROM shopping_cart
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO shopping_cart (
+            user_id,
+            dish_id,
+            setmeal_id,
+            quantity,
+            flavor
+        ) VALUES (
+            #{userId},
+            #{dishId},
+            #{setmealId},
+            #{quantity},
+            #{flavor}
+        )
+    </insert>
+
+    <update id="updateQuantityAndFlavor">
+        UPDATE shopping_cart
+        SET quantity = #{quantity},
+            flavor = #{flavor},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </update>
+
+    <delete id="deleteByIdAndUserId">
+        DELETE FROM shopping_cart
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </delete>
+
+    <delete id="deleteByUserId">
+        DELETE FROM shopping_cart
+        WHERE user_id = #{userId}
+    </delete>
+
+    <select id="selectByUserId" resultType="com.sky.takeout.vo.ShoppingCartVO">
+        SELECT sc.id,
+               COALESCE(sc.dish_id, sc.setmeal_id) AS product_id,
+               CASE
+                   WHEN sc.dish_id IS NOT NULL THEN 'dish'
+                   ELSE 'setmeal'
+               END AS product_type,
+               COALESCE(d.name, s.name) AS name,
+               COALESCE(d.image, s.image) AS image,
+               COALESCE(d.price, s.price) AS unit_price,
+               sc.quantity,
+               sc.flavor
+        FROM shopping_cart sc
+        LEFT JOIN dish d ON d.id = sc.dish_id
+        LEFT JOIN setmeal s ON s.id = sc.setmeal_id
+        WHERE sc.user_id = #{userId}
+        ORDER BY sc.create_time ASC, sc.id ASC
+    </select>
+
+</mapper>

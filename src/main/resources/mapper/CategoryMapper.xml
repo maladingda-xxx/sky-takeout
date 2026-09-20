@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.CategoryMapper">
+
+    <sql id="queryWhere">
+        <where>
+            <if test="type != null">
+                AND type = #{type}
+            </if>
+            <if test="name != null and name != ''">
+                AND name LIKE CONCAT('%', #{name}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <select id="countByQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM category
+        <include refid="queryWhere"/>
+    </select>
+
+    <select id="selectPage" resultType="Category">
+        SELECT id,
+               type,
+               name,
+               sort,
+               status,
+               update_time
+        FROM category
+        <include refid="queryWhere"/>
+        ORDER BY sort ASC, update_time DESC, id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByTypeAndName" resultType="long">
+        SELECT COUNT(*)
+        FROM category
+        WHERE type = #{type}
+          AND name = #{name}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO category (
+            type,
+            name,
+            sort,
+            status,
+            create_user,
+            update_user
+        ) VALUES (
+            #{type},
+            #{name},
+            #{sort},
+            #{status},
+            #{createUser},
+            #{updateUser}
+        )
+    </insert>
+
+    <select id="selectById" resultType="Category">
+        SELECT id,
+               type,
+               name,
+               sort,
+               status,
+               create_time,
+               update_time,
+               create_user,
+               update_user
+        FROM category
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByType" resultType="Category">
+        SELECT id,
+               type,
+               name,
+               sort,
+               status,
+               update_time
+        FROM category
+        WHERE type = #{type}
+        ORDER BY sort ASC, update_time DESC, id DESC
+    </select>
+
+    <select id="selectEnabledByType" resultType="Category">
+        SELECT id,
+               type,
+               name,
+               sort,
+               status,
+               update_time
+        FROM category
+        WHERE type = #{type}
+          AND status = 1
+        ORDER BY sort ASC, update_time DESC, id DESC
+    </select>
+
+    <update id="update">
+        UPDATE category
+        SET type = #{type},
+            name = #{name},
+            sort = #{sort},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE category
+        SET status = #{status},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <select id="countDishesByCategoryId" resultType="long">
+        SELECT COUNT(*)
+        FROM dish
+        WHERE category_id = #{categoryId}
+    </select>
+
+    <select id="countSetmealsByCategoryId" resultType="long">
+        SELECT COUNT(*)
+        FROM setmeal
+        WHERE category_id = #{categoryId}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM category
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.SetmealMapper">
+
+    <resultMap id="setmealDishResultMap" type="com.sky.takeout.vo.SetmealDishVO">
+        <constructor>
+            <idArg column="dish_id" javaType="java.lang.Long"/>
+            <arg column="dish_name" javaType="java.lang.String"/>
+            <arg column="dish_price" javaType="java.math.BigDecimal"/>
+            <arg column="copies" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="queryWhere">
+        <where>
+            <if test="name != null and name != ''">
+                AND s.name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="categoryId != null">
+                AND s.category_id = #{categoryId}
+            </if>
+            <if test="status != null">
+                AND s.status = #{status}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countByQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM setmeal s
+        <include refid="queryWhere"/>
+    </select>
+
+    <select id="selectPage" resultType="com.sky.takeout.vo.SetmealPageVO">
+        SELECT s.id,
+               s.category_id,
+               c.name AS category_name,
+               s.name,
+               s.price,
+               s.status,
+               s.description,
+               s.image,
+               s.update_time
+        FROM setmeal s
+        LEFT JOIN category c ON c.id = s.category_id
+        <include refid="queryWhere"/>
+        ORDER BY s.update_time DESC, s.id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByCategoryAndName" resultType="long">
+        SELECT COUNT(*)
+        FROM setmeal
+        WHERE category_id = #{categoryId}
+          AND name = #{name}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO setmeal (
+            category_id,
+            name,
+            price,
+            status,
+            description,
+            image,
+            create_user,
+            update_user
+        ) VALUES (
+            #{categoryId},
+            #{name},
+            #{price},
+            #{status},
+            #{description},
+            #{image},
+            #{createUser},
+            #{updateUser}
+        )
+    </insert>
+
+    <select id="selectById" resultType="Setmeal">
+        SELECT id,
+               category_id,
+               name,
+               price,
+               status,
+               description,
+               image,
+               create_time,
+               update_time,
+               create_user,
+               update_user
+        FROM setmeal
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectEnabledByCategoryId" resultType="com.sky.takeout.vo.SetmealPageVO">
+        SELECT s.id,
+               s.category_id,
+               c.name AS category_name,
+               s.name,
+               s.price,
+               s.status,
+               s.description,
+               s.image,
+               s.update_time
+        FROM setmeal s
+        LEFT JOIN category c ON c.id = s.category_id
+        WHERE s.category_id = #{categoryId}
+          AND s.status = 1
+        ORDER BY s.update_time DESC, s.id DESC
+    </select>
+
+    <update id="update">
+        UPDATE setmeal
+        SET category_id = #{categoryId},
+            name = #{name},
+            price = #{price},
+            description = #{description},
+            image = #{image},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE setmeal
+        SET status = #{status},
+            update_time = CURRENT_TIMESTAMP,
+            update_user = #{updateUser}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM setmeal
+        WHERE id = #{id}
+    </delete>
+
+    <insert id="insertDishes">
+        INSERT INTO setmeal_dish (
+            setmeal_id,
+            dish_id,
+            copies,
+            create_user,
+            update_user
+        ) VALUES
+        <foreach collection="dishes" item="dish" separator=",">
+            (
+                #{dish.setmealId},
+                #{dish.dishId},
+                #{dish.copies},
+                #{dish.createUser},
+                #{dish.updateUser}
+            )
+        </foreach>
+    </insert>
+
+    <delete id="deleteDishesBySetmealId">
+        DELETE FROM setmeal_dish
+        WHERE setmeal_id = #{setmealId}
+    </delete>
+
+    <select id="selectDishesBySetmealId" resultMap="setmealDishResultMap">
+        SELECT sd.dish_id,
+               d.name AS dish_name,
+               d.price AS dish_price,
+               sd.copies
+        FROM setmeal_dish sd
+        JOIN dish d ON d.id = sd.dish_id
+        WHERE sd.setmeal_id = #{setmealId}
+        ORDER BY sd.id ASC
+    </select>
+
+</mapper>

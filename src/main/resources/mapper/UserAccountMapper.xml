@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.UserAccountMapper">
+
+    <select id="selectByOpenid" resultType="UserAccount">
+        SELECT id,
+               openid,
+               name,
+               phone,
+               sex,
+               avatar,
+               create_time,
+               update_time
+        FROM user_account
+        WHERE openid = #{openid}
+    </select>
+
+    <select id="selectById" resultType="UserAccount">
+        SELECT id,
+               openid,
+               name,
+               phone,
+               sex,
+               avatar,
+               create_time,
+               update_time
+        FROM user_account
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_account (
+            openid,
+            name,
+            phone,
+            sex,
+            avatar
+        ) VALUES (
+            #{openid},
+            #{name},
+            #{phone},
+            #{sex},
+            #{avatar}
+        )
+    </insert>
+
+</mapper>

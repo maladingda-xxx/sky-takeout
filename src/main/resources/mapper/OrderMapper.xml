@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.takeout.mapper.OrderMapper">
+
+    <sql id="orderColumns">
+        id,
+        number,
+        status,
+        user_id,
+        address_book_id,
+        order_time,
+        checkout_time,
+        pay_method,
+        pay_status,
+        amount,
+        remark,
+        phone,
+        address,
+        consignee,
+        cancel_reason,
+        cancel_time,
+        create_time,
+        update_time
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (
+            number,
+            status,
+            user_id,
+            address_book_id,
+            order_time,
+            pay_method,
+            pay_status,
+            amount,
+            remark,
+            phone,
+            address,
+            consignee
+        ) VALUES (
+            #{number},
+            #{status},
+            #{userId},
+            #{addressBookId},
+            #{orderTime},
+            #{payMethod},
+            #{payStatus},
+            #{amount},
+            #{remark},
+            #{phone},
+            #{address},
+            #{consignee}
+        )
+    </insert>
+
+    <select id="selectByIdAndUserId" resultType="Order">
+        SELECT <include refid="orderColumns"/>
+        FROM orders
+        WHERE id = #{id}
+          AND user_id = #{userId}
+    </select>
+
+    <select id="selectById" resultType="Order">
+        SELECT <include refid="orderColumns"/>
+        FROM orders
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByNumberAndUserId" resultType="Order">
+        SELECT <include refid="orderColumns"/>
+        FROM orders
+        WHERE number = #{number}
+          AND user_id = #{userId}
+    </select>
+
+    <select id="countByQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM orders
+        WHERE user_id = #{userId}
+        <if test="query.status != null">
+            AND status = #{query.status}
+        </if>
+    </select>
+
+    <select id="selectPage" resultType="com.sky.takeout.vo.OrderVO">
+        SELECT id,
+               number,
+               status,
+               pay_status,
+               pay_method,
+               amount,
+               remark,
+               phone,
+               address,
+               consignee,
+               order_time,
+               checkout_time,
+               cancel_reason,
+               cancel_time
+        FROM orders
+        WHERE user_id = #{userId}
+        <if test="query.status != null">
+            AND status = #{query.status}
+        </if>
+        ORDER BY order_time DESC, id DESC
+        LIMIT #{query.pageSize} OFFSET #{query.offset}
+    </select>
+
+    <select id="countByAdminQuery" resultType="long">
+        SELECT COUNT(*)
+        FROM orders
+        <where>
+            <if test="query.number != null and query.number != ''">
+                AND number LIKE CONCAT('%', #{query.number}, '%')
+            </if>
+            <if test="query.phone != null and query.phone != ''">
+                AND phone LIKE CONCAT('%', #{query.phone}, '%')
+            </if>
+            <if test="query.status != null">
+                AND status = #{query.status}
+            </if>
+            <if test="query.beginTime != null">
+                AND order_time &gt;= #{query.beginTime}
+            </if>
+            <if test="query.endTime != null">
+                AND order_time &lt;= #{query.endTime}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectAdminPage" resultType="com.sky.takeout.vo.OrderVO">
+        SELECT id,
+               number,
+               status,
+               pay_status,
+               pay_method,
+               amount,
+               remark,
+               phone,
+               address,
+               consignee,
+               order_time,
+               checkout_time,
+               cancel_reason,
+               cancel_time
+        FROM orders
+        <where>
+            <if test="query.number != null and query.number != ''">
+                AND number LIKE CONCAT('%', #{query.number}, '%')
+            </if>
+            <if test="query.phone != null and query.phone != ''">
+                AND phone LIKE CONCAT('%', #{query.phone}, '%')
+            </if>
+            <if test="query.status != null">
+                AND status = #{query.status}
+            </if>
+            <if test="query.beginTime != null">
+                AND order_time &gt;= #{query.beginTime}
+            </if>
+            <if test="query.endTime != null">
+                AND order_time &lt;= #{query.endTime}
+            </if>
+        </where>
+        ORDER BY order_time DESC, id DESC
+        LIMIT #{query.pageSize} OFFSET #{query.offset}
+    </select>
+
+    <select id="selectStatistics" resultType="com.sky.takeout.vo.OrderStatisticsVO">
+        SELECT COALESCE(SUM(CASE WHEN status = 2 THEN 1 ELSE 0 END), 0)
+                   AS to_be_confirmed,
+               COALESCE(SUM(CASE WHEN status = 3 THEN 1 ELSE 0 END), 0)
+                   AS confirmed,
+               COALESCE(SUM(CASE WHEN status = 4 THEN 1 ELSE 0 END), 0)
+                   AS delivery_in_progress
+        FROM orders
+    </select>
+
+    <update id="markPaid">
+        UPDATE orders
+        SET status = 2,
+            pay_status = 1,
+            checkout_time = CURRENT_TIMESTAMP,
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND status = 1
+          AND pay_status = 0
+    </update>
+
+    <update id="cancel">
+        UPDATE orders
+        SET status = 6,
+            pay_status = CASE WHEN pay_status = 1 THEN 2 ELSE 0 END,
+            cancel_reason = #{reason},
+            cancel_time = CURRENT_TIMESTAMP,
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND status IN (1, 2)
+    </update>
+
+    <update id="transitionStatus">
+        UPDATE orders
+        SET status = #{targetStatus},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+    <update id="reject">
+        UPDATE orders
+        SET status = 6,
+            pay_status = CASE WHEN pay_status = 1 THEN 2 ELSE 0 END,
+            cancel_reason = #{reason},
+            cancel_time = CURRENT_TIMESTAMP,
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND status = 2
+    </update>
+
+    <update id="adminCancel">
+        UPDATE orders
+        SET status = 6,
+            pay_status = CASE WHEN pay_status = 1 THEN 2 ELSE 0 END,
+            cancel_reason = #{reason},
+            cancel_time = CURRENT_TIMESTAMP,
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND status IN (1, 2, 3, 4)
+    </update>
+
+    <insert id="insertDetails">
+        INSERT INTO order_detail (
+            order_id,
+            name,
+            image,
+            dish_id,
+            setmeal_id,
+            dish_flavor,
+            number,
+            amount
+        ) VALUES
+        <foreach collection="details" item="detail" separator=",">
+            (
+                #{detail.orderId},
+                #{detail.name},
+                #{detail.image},
+                #{detail.dishId},
+                #{detail.setmealId},
+                #{detail.dishFlavor},
+                #{detail.number},
+                #{detail.amount}
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectDetailsByOrderIds" resultType="OrderDetail">
+        SELECT id,
+               order_id,
+               name,
+               image,
+               dish_id,
+               setmeal_id,
+               dish_flavor,
+               number,
+               amount,
+               create_time
+        FROM order_detail
+        WHERE order_id IN
+        <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
+            #{orderId}
+        </foreach>
+        ORDER BY order_id ASC, id ASC
+    </select>
+
+</mapper>
