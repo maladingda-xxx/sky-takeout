@@ -7183,3 +7183,352 @@ BUILD SUCCESS
 6. 为什么缓存值要用项目统一的 ObjectMapper 序列化，而不是用默认构造的 ObjectMapper？
 7. 为什么 `List.of()` 和 `stream().toList()` 不能直接作为缓存值的根类型？
 8. 如果 Redis 挂了，浏览接口应该直接报错，还是降级去查数据库？
+
+---
+
+## 2026-09-20：Step 18 - 缓存穿透、击穿与雪崩
+
+### 1. 本步目标
+
+Step 17 让缓存能读、写操作能失效，解决的是正常流量下的问题。本步处理三种异常流量：
+
+```text
+穿透：查一个根本不存在的 id，缓存永远不命中，每次都打到数据库
+击穿：某个热点 key 刚好过期，并发请求同时回源数据库
+雪崩：大量 key 在同一时刻过期，数据库瞬间被打满
+```
+
+三个问题都发生在"缓存不命中"的那一刻，所以先把不命中拆成两类：
+
+```text
+数据真的不存在     -> 穿透
+数据存在但缓存没了 -> 击穿、雪崩
+```
+
+### 2. 这三种问题在本项目里长什么样
+
+用户端有三个接口可以传任意 id：
+
+```text
+GET /user/dish/list?categoryId=999999      分类不存在或已停用
+GET /user/setmeal/list?categoryId=999999   分类不存在或已停用
+GET /user/setmeal/999999                   套餐不存在或已停用
+```
+
+Step 17 的代码在这三种情况都会抛 `BusinessException`（404 或 400）。而 `@Cacheable` 遇到异常不写缓存，所以一个随机 id 可以被反复查询，每次都完整走一遍数据库。
+
+击穿和雪崩在本项目的规模：分类数量少、热点集中在少数几个 key 上。所以击穿的风险大于雪崩。两种保护都做了，因为成本都不高。
+
+### 3. 穿透：把"查不到"也缓存起来
+
+缓存里存的是"查询结果"，而"查不到"也是一种查询结果。这个思路叫负缓存（negative cache）。
+
+读写逻辑放在 `CatalogMissCache`：
+
+```java
+public BusinessException findMissed(String scope, Object key) {
+    ...
+    return new BusinessException(failure.code(), failure.message());
+}
+
+public BusinessException recordMissed(String scope, Object key, BusinessException exception) {
+    ...
+    return exception;
+}
+```
+
+调用方 `UserCatalogServiceImpl`：
+
+```java
+BusinessException missed = catalogMissCache.findMissed(scope, categoryId);
+if (missed != null) {
+    throw missed;                        // 命中负缓存，不碰数据库
+}
+
+Category category = categoryMapper.selectById(categoryId);
+if (category == null || category.getStatus() != ENABLED) {
+    throw catalogMissCache.recordMissed(
+            scope,
+            categoryId,
+            new BusinessException(404, "Category not found")
+    );
+}
+```
+
+为什么缓存的是 `code + message`，而不是一个简单的 `MISS` 标记：负缓存命中时，必须抛出和第一次完全一样的异常。如果只存一个空标记，读取处就得再写一遍状态码和文案，等于把判断逻辑复制成两份，迟早会不一致。`CachedFailure` 就是为这件事存在的小值对象。
+
+为什么 key 前面要加 scope 前缀：同一个 id 在不同接口里的失败原因不同，key 必须能区分：
+
+```text
+dish-category:999    -> 404 Category not found 或 400 Category type mismatch
+setmeal-category:999 -> 404 Category not found 或 400 Category type mismatch
+setmeal:999          -> 404 Setmeal not found
+```
+
+同一个 id 在不同 scope 下互不覆盖，各自记住各自的失败原因。
+
+### 4. 为什么负缓存单独一组，而且 TTL 更短
+
+负缓存放在单独的 cache（`catalogMiss`）里，TTL 从 10 分钟降到 2 分钟：
+
+```java
+.withCacheConfiguration(
+        CacheNames.CATALOG_MISS,
+        defaults.entryTtl(cacheProperties.getMissTtl())
+)
+```
+
+理由：正缓存存的是真实数据，过期久一点最多是"看到旧数据"；负缓存存的是"当前不存在"，一旦管理员新建或启用了数据，它立刻变成错的。它只是防御手段，不是权威数据，所以给它更短的寿命，缩小出错窗口。
+
+### 5. 击穿：`sync = true` 配合加锁写入器
+
+两个东西配合，缺一不可：
+
+```java
+@Cacheable(cacheNames = CacheNames.DISHES, key = "#categoryId", sync = true)
+```
+
+```java
+RedisCacheWriter.lockingRedisCacheWriter(connectionFactory)
+```
+
+- `sync = true` 让 Spring 走 `Cache.get(key, Callable)` 这条路径。默认的 `@Cacheable` 是"查缓存 → 没有就执行方法 → 写缓存"，多个线程会同时执行方法。
+- `lockingRedisCacheWriter` 让写入器在执行 loader 之前先按 key 加锁，拿到锁之后重新查一次缓存；只有第一个线程真正回源，后面的线程直接读它写好的值。
+
+这个组合只在单个 JVM 内有效。多实例部署时每个实例各有一把本机锁，仍然可能同时回源。跨实例要靠 Redis 分布式锁（Redisson，或 `SET NX PX` 加 Lua 释放），见第 13 节。
+
+### 6. 雪崩：给 TTL 加随机抖动
+
+如果所有 key 都写死 10 分钟过期，同一时刻写入的 key 就会在同一时刻集体消失。解决办法是让过期时间散开：
+
+```java
+RedisCacheWriter cacheWriter = new JitterRedisCacheWriter(
+        RedisCacheWriter.lockingRedisCacheWriter(connectionFactory),
+        new TtlJitter(cacheProperties.getTtlJitter())
+);
+```
+
+`TtlJitter` 只做一件事：
+
+```java
+long jitterMillis = ThreadLocalRandom.current().nextLong(maxJitter.toMillis() + 1);
+return ttl.plusMillis(jitterMillis);
+```
+
+于是实际 TTL 落在 `600s ~ 660s` 之间，而不是整齐的 600s。
+
+### 7. 为什么抖动写在 RedisCacheWriter 这一层
+
+`@Cacheable` 没有地方可以表达"每个 entry 的 TTL 都随机"。`RedisCacheConfiguration.entryTtl` 是每个 cache 一份配置，同一组缓存里的所有 key 仍然相同。
+
+`RedisCache` 每次写入都会调用 `cacheWriter.put(name, key, value, ttl)`，ttl 来自缓存配置。所以在写入器外面包一层装饰器，就能在不改业务注解、不改缓存配置的前提下，让每一次写入都带抖动。
+
+装饰器要实现 `RedisCacheWriter` 的全部方法，其中一个必须显式转发，否则会静默退化成接口默认实现：
+
+```java
+@Override
+public byte[] get(
+        String name,
+        byte[] key,
+        Supplier<byte[]> valueLoader,
+        Duration ttl,
+        boolean updateCache
+) {
+    return delegate.get(name, key, valueLoader, ttlJitter.apply(ttl), updateCache);
+}
+```
+
+这个五参数方法是 `sync = true` 的回源入口，也是加锁真正生效的地方。漏掉它，默认实现会先 `get` 再 `put`，锁就白加了。
+
+### 8. 失效范围：写操作要连负缓存一起清
+
+`CatalogMissCache` 写的是 `catalogMiss`。如果管理端写操作不清它，就会出现"新建了分类，用户端还在报 404，直到 2 分钟 TTL 过期"。
+
+所以三组写操作的清理范围都带上它：
+
+```text
+分类写操作 -> catalogCategories + catalogDishes + catalogSetmeals + catalogSetmealDetail + catalogMiss
+菜品写操作 -> catalogDishes + catalogSetmealDetail + catalogMiss
+套餐写操作 -> catalogSetmeals + catalogSetmealDetail + catalogMiss
+```
+
+### 9. 测试隔离：默认测试不再依赖 Redis
+
+Step 17 之后，用户端浏览接口已经真的会读写 Redis。这意味着默认测试套件需要一台运行中的 Redis 才能通过，这不是测试该有的样子。
+
+所以在 `application-test.yml` 里关掉缓存：
+
+```yaml
+sky:
+  cache:
+    enabled: false
+```
+
+缓存关闭时 `RedisCacheConfig` 整体不生效（`@ConditionalOnProperty`），`@EnableCaching` 也随之不注册，`@Cacheable` 退化成直接调用方法；`CatalogMissCache` 通过 `ObjectProvider<CacheManager>` 拿不到 CacheManager，自动降级为不缓存。
+
+需要验证缓存本身的用例显式打开：
+
+```java
+@SpringBootTest(properties = "sky.cache.enabled=true")
+@EnabledIfEnvironmentVariable(named = "REDIS_INTEGRATION_TEST", matches = "true")
+```
+
+这顺便保证了 `CACHE_ENABLED=false` 这个开关真的有效：如果它在关闭状态下仍然去连 Redis，测试会失败。
+
+### 10. 核心文件
+
+```text
+src/main/java/com/sky/takeout/common/CachedFailure.java                 负缓存的值对象
+src/main/java/com/sky/takeout/common/CatalogMissCache.java              负缓存读写
+src/main/java/com/sky/takeout/config/TtlJitter.java                     TTL 抖动计算
+src/main/java/com/sky/takeout/config/JitterRedisCacheWriter.java        写入器装饰器
+src/main/java/com/sky/takeout/config/RedisCacheConfig.java              装配加锁、抖动和负缓存 TTL
+src/main/java/com/sky/takeout/service/impl/UserCatalogServiceImpl.java  负缓存接入点
+src/test/java/com/sky/takeout/RedisCacheBehaviorIntegrationTest.java    击穿与雪崩验证
+src/test/java/com/sky/takeout/common/CatalogMissCacheTest.java          负缓存单元测试
+src/test/java/com/sky/takeout/config/TtlJitterTest.java                 抖动单元测试
+```
+
+### 11. 验证结果
+
+含真实 Redis 的完整套件：
+
+```text
+Tests run: 169, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+默认套件（缓存关闭，不连 Redis）：
+
+```text
+Tests run: 169, Failures: 0, Errors: 0, Skipped: 9
+BUILD SUCCESS
+```
+
+三个关键验证点：
+
+```text
+RedisCacheBehaviorIntegrationTest.shouldLoadColdKeyOnlyOnceWhenThreadsRace
+    8 个线程抢一个冷 key，loader 只执行了 1 次
+
+RedisCacheBehaviorIntegrationTest.shouldSpreadExpiryTimesAcrossEntries
+    同一组缓存写入 20 个 key，过期时间不止一个值，且都落在 600s ~ 660s
+
+CatalogCacheIntegrationTest.shouldCacheMissingCategoryAndClearItOnCategoryWrite
+    负缓存能命中，TTL 比正缓存短，管理端写操作后负缓存被清空
+```
+
+为了确认击穿这条用例真的有判别力，做了一次反证：把写入器临时换成 `nonLockingRedisCacheWriter`，同一个用例变成：
+
+```text
+expected: <1> but was: <8>
+```
+
+八个线程全部回源。改回加锁实现后恢复为 1。测试不是摆设。
+
+### 12. 本步设计结论
+
+```text
+穿透用负缓存：把"查不到"当成一种查询结果缓存起来
+负缓存单独一组，TTL 更短，并在所有目录写操作后清空
+负缓存保存 code + message，保证重复请求得到完全一致的响应
+击穿用 sync = true 加 lockingRedisCacheWriter，单 JVM 内只回源一次
+雪崩用 TtlJitter 在写入器层给每个 entry 的 TTL 加随机抖动
+装饰器必须显式转发五参数 get，否则加锁会被默认实现绕开
+默认测试关闭缓存，需要验证缓存的用例显式开启并加 Redis 环境变量门控
+```
+
+### 13. 已知局限与下一步
+
+```text
+sync 的锁只在本 JVM 内，多实例部署仍可能同时回源
+负缓存用 TTL 加显式清理，不是布隆过滤器，随机 id 仍然会各自写一条负缓存
+清理粒度仍是 allEntries，命中率还有优化空间
+如果 Redis 整体不可用，浏览接口目前会直接失败，没有降级到数据库的兜底
+```
+
+下一步方向：接口文档、日志规范、Docker 与部署（Phase 5），以及消息队列评估（Step 19）。
+
+### 14. 自学检查点
+
+1. 为什么"查不到"也要缓存？它和"缓存空值"是一回事吗？
+2. 负缓存为什么必须保存状态码和文案，而不是一个布尔标记？
+3. 同一个分类 id 在菜品接口和套餐接口里的负缓存为什么要分开存？
+4. `sync = true` 单独使用为什么挡不住击穿？加锁写入器补上了哪一步？
+5. 为什么 TTL 抖动只能在写入器层做，而不能靠 `entryTtl` 配置？
+6. 装饰器漏掉五参数 `get` 会发生什么？为什么这种 bug 很难被发现？
+7. 为什么测试环境要关闭缓存，而不是让所有测试都连 Redis？
+8. 如果项目要做多实例部署，现在的击穿保护还缺什么？
+
+---
+
+## 2026-09-20：Step 19 - 消息队列评估（结论：暂不引入）
+
+### 1. 本步要回答的问题
+
+Phase 4 的最后一项是"评估消息队列是否确实需要"。注意这里的关键词是**评估**，不是**引入**。引入一个中间件要能说清楚它解决了什么具体问题，否则只是给自己增加运维负担。
+
+先看现在系统里哪些环节是同步执行的：
+
+```text
+下单        -> 一个事务里写订单、写明细、清空购物车
+支付（模拟） -> 条件更新订单状态
+管理端流转   -> 接单、拒单、派送、完成，条件更新加状态校验
+订单统计     -> selectStatistics() 直接聚合查询
+图片上传     -> 同步写入本地磁盘并返回 URL
+用户端浏览   -> 读取 Redis 缓存
+```
+
+### 2. 逐个场景判断
+
+| 场景 | 现状 | 需要 MQ 吗 | 更便宜的替代 |
+| --- | --- | --- | --- |
+| 超时未支付自动取消 | 尚未实现，`OrderServiceImpl` 只有用户主动取消 | 不需要 | `@Scheduled` 定时扫描加条件更新，或 Redis ZSet 延迟队列 |
+| 下单成功后通知商家 | 没有通知渠道 | 不需要 | 没有消费者时引入 MQ 只是把消息堆起来 |
+| 派送完成提醒用户 | 没有推送渠道 | 不需要 | 同上 |
+| 订单统计 | 单表聚合查询，数据量小 | 不需要 | 结果写入 Redis，定时刷新 |
+| 图片压缩、水印 | 同步落盘 | 不需要 | 线程池即可，不需要跨进程也不需要持久化 |
+| 下单峰值削峰 | 单店场景，写入量远低于 MySQL 单机能力 | 不需要 | 数据库连接池与限流 |
+
+### 3. 引入 MQ 的真实代价
+
+```text
+运维：多一个必须常驻、必须监控、必须备份的中间件
+可靠性：消息丢失、重复消费、消费失败重试、死信队列
+幂等：消费端必须自己保证，订单状态机的条件更新是天然兜底，但不是所有场景都有
+顺序：同一订单的多条事件可能需要保序
+排障：链路从一个调用栈变成跨进程，问题定位成本上升
+测试：本地开发和 CI 需要额外的容器或 mock
+```
+
+### 4. 结论
+
+**暂不引入**。当前所有异步需求都能用更轻的方式满足，引入 MQ 属于"技术先行"，会让项目多背一份自己都说不清收益的成本。
+
+将来满足下面任意一条时，再引入：
+
+```text
+1. 超时关单、延时提醒这类定时或延时任务成为硬需求，且量级明显上升
+2. 出现需要跨进程、可重放的异步解耦（通知、对账、报表、数据同步）
+3. 下单峰值出现写入瓶颈，需要削峰填谷
+4. 多实例部署，需要事件广播或跨实例的任务分发
+```
+
+### 5. 如果将来引入，怎么选
+
+```text
+RabbitMQ   路由灵活，延迟插件成熟，适合业务事件和延时任务
+Kafka      吞吐高、可重放，适合日志、埋点、对账这类流式场景
+Redis Stream 已经在用 Redis，运维成本最低，适合轻量事件与消费组
+```
+
+选择顺序建议：先明确"解决哪一个具体问题"，再据问题选型，不要为了学习同时引入两套。
+
+### 6. 自学检查点
+
+1. 什么样的场景才真正需要消息队列？"异步"就等于"上 MQ"吗？
+2. 超时关单为什么用定时任务加条件更新就够了？
+3. 消息重复消费时，订单状态机为什么能提供兜底？
+4. 消息队列带来的可靠性问题（丢失、重复、顺序）分别由谁负责解决？
+5. RabbitMQ、Kafka、Redis Stream 各自最擅长的场景是什么？
+6. 如果现在引入 MQ，第一个真实的消费者会是谁？
