@@ -10,6 +10,13 @@ spring:
     url: ${DB_URL:jdbc:mysql://localhost:3306/sky_takeout?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:2s}
 
 server:
   port: 8080
@@ -29,6 +36,10 @@ sky:
     app-secret: ${WECHAT_APP_SECRET:}
     api-url: ${WECHAT_API_URL:https://api.weixin.qq.com/sns/jscode2session}
     mock-enabled: ${WECHAT_MOCK_ENABLED:false}
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    ttl: ${CACHE_TTL:10m}
+    key-prefix: ${CACHE_KEY_PREFIX:sky:cache:}
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml

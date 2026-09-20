@@ -6612,3 +6612,290 @@ Phase 4 Redis 缓存菜品和套餐
 5. 为什么拖拽后要等后端成功再刷新看板？
 6. 为什么 KDS 只轮询状态 `2`、`3`、`4`？
 7. 如果订单被另一个 KDS 同时处理，前端应该如何处理 `409`？
+
+---
+
+## 2026-09-20：Step 16 - Redis 基础设施
+
+### 1. 本步目标
+
+Phase 4 不直接从业务方法上加缓存，而是先建立可验证的 Redis 基础设施：
+
+```text
+安装本机 Redis
+启动 Redis 服务
+Spring Boot 引入 Spring Data Redis
+通过环境变量配置连接
+统一缓存名称前缀
+统一缓存过期时间
+统一 JSON 值序列化
+使用真实 Redis 完成读写烟测
+```
+
+本步暂时不改菜品、套餐或订单查询逻辑。业务缓存和缓存失效放到下一步，避免把环境问题与业务问题混在一次提交中。
+
+### 2. 安装并启动 Redis
+
+macOS 使用 Homebrew：
+
+```bash
+brew install redis
+brew services start redis
+```
+
+检查服务：
+
+```bash
+brew services list
+```
+
+真实连接：
+
+```bash
+redis-cli ping
+```
+
+返回：
+
+```text
+PONG
+```
+
+本机版本：
+
+```text
+Redis 8.10.2
+```
+
+### 3. Spring Data Redis 依赖
+
+`pom.xml` 新增：
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+```
+
+Spring Boot 自动配置会提供：
+
+```text
+Lettuce RedisConnectionFactory
+StringRedisTemplate
+RedisTemplate
+```
+
+项目额外提供的是缓存策略，而不是重复创建底层连接工厂。
+
+### 4. Redis 连接配置
+
+`application.yml`：
+
+```yaml
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:2s}
+```
+
+所有字段都有默认值：
+
+```text
+本机默认连接 127.0.0.1:6379
+默认数据库 0
+默认无密码
+命令超时 2 秒
+```
+
+部署时通过环境变量覆盖，不需要修改代码：
+
+```bash
+REDIS_HOST=redis.internal
+REDIS_PORT=6379
+REDIS_PASSWORD='<redis-password>'
+REDIS_DATABASE=0
+```
+
+### 5. 缓存配置项
+
+新增 `CacheProperties`：
+
+```yaml
+sky:
+  cache:
+    enabled: ${CACHE_ENABLED:true}
+    ttl: ${CACHE_TTL:10m}
+    key-prefix: ${CACHE_KEY_PREFIX:sky:cache:}
+```
+
+含义：
+
+```text
+enabled：是否启用 Spring Cache 和 Redis CacheManager
+ttl：缓存默认过期时间，当前 10 分钟
+key-prefix：所有业务缓存键的统一前缀
+```
+
+环境变量示例：
+
+```bash
+CACHE_ENABLED=true
+CACHE_TTL=30m
+CACHE_KEY_PREFIX=sky:prod:cache:
+```
+
+### 6. Redis CacheManager
+
+新增：
+
+```text
+src/main/java/com/sky/takeout/config/RedisCacheConfig.java
+```
+
+核心配置：
+
+```java
+@Configuration
+@EnableCaching
+@ConditionalOnProperty(
+        name = "sky.cache.enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
+public class RedisCacheConfig {
+```
+
+CacheManager 使用：
+
+```text
+StringRedisSerializer 序列化缓存键
+GenericJackson2JsonRedisSerializer 序列化缓存值
+统一 TTL
+统一 keyPrefix
+不缓存 null
+```
+
+键格式示例：
+
+```text
+sky:cache:dishes:1
+sky:cache:setmeals:2
+sky:cache:setmealDetail:10
+```
+
+实际缓存名称和 Key 会在下一任务中接入业务方法。
+
+### 7. 为什么不直接用默认缓存配置
+
+Spring Cache 默认行为不提供项目需要的 TTL 和统一序列化策略。
+
+如果直接使用默认配置：
+
+```text
+缓存可能长期不失效
+Redis 中可能保存难以阅读的 JDK 序列化内容
+不同开发者可能写出不同 key 前缀
+排查问题时难以判断缓存属于哪个环境
+```
+
+统一配置后：
+
+```text
+缓存内容可读
+过期时间明确
+不同环境可以切换前缀
+缓存开关可以独立控制
+```
+
+### 8. 测试隔离
+
+真实 Redis 测试使用环境变量控制：
+
+```java
+@EnabledIfEnvironmentVariable(
+        named = "REDIS_INTEGRATION_TEST",
+        matches = "true"
+)
+```
+
+默认全量测试不会依赖本机 Redis：
+
+```text
+RedisConnectionIntegrationTest -> skipped
+```
+
+需要验收 Redis 时显式开启：
+
+```bash
+REDIS_INTEGRATION_TEST=true \
+./mvnw -Dtest=RedisConnectionIntegrationTest test
+```
+
+测试内容：
+
+```text
+Spring Boot 启动
+连接 127.0.0.1:6379
+写入带 30 秒 TTL 的字符串
+读取并断言值
+删除测试键
+```
+
+### 9. 验证结果
+
+Redis 服务：
+
+```text
+redis-cli ping -> PONG
+redis_version -> 8.10.2
+brew service -> started
+```
+
+真实 Redis 测试：
+
+```text
+Tests run: 1
+Failures: 0
+Errors: 0
+Skipped: 0
+BUILD SUCCESS
+```
+
+默认全量测试：
+
+```text
+Tests run: 153
+Failures: 0
+Errors: 0
+Skipped: 1
+BUILD SUCCESS
+```
+
+跳过的就是需要显式开启的真实 Redis 测试。
+
+### 10. 本步设计结论
+
+```text
+Redis 先作为独立基础设施接入
+连接信息全部环境变量化
+缓存 TTL 和 key 前缀集中配置
+缓存值使用 JSON 序列化
+缓存开关默认开启，可在环境不允许时关闭
+真实 Redis 测试默认跳过，保持普通测试独立
+业务缓存不在本步修改，下一步单独实现和验证
+```
+
+### 11. 自学检查点
+
+1. 为什么先接入 Redis 基础设施，再给业务加缓存？
+2. 为什么连接地址、密码和 TTL 不应该硬编码？
+3. `StringRedisSerializer` 和 JSON 值序列化分别解决什么问题？
+4. 为什么要设置统一 TTL，而不是让缓存永久存在？
+5. 为什么真实 Redis 测试要用环境变量控制，而不是默认执行？
+6. `CACHE_ENABLED=false` 对本地开发和故障排查有什么价值？
+7. 下一任务给菜品和套餐加缓存时，哪些管理端写操作必须清理缓存？
